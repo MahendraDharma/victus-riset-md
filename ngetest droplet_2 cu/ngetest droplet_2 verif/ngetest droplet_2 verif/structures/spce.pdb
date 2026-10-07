@@ -1,0 +1,5 @@
+HEADER    SPC/E water
+ATOM      1 OW  WAT A   1       0.000   0.000   0.000  1.00  0.00           O
+ATOM      2 HW1 WAT A   1       0.816   0.577   0.000  1.00  0.00           H
+ATOM      3 HW2 WAT A   1      -0.816   0.577   0.000  1.00  0.00           H
+END

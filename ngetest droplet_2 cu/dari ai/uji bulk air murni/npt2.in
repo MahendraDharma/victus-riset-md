@@ -1,0 +1,15 @@
+include system.in.init
+read_data minimized.data
+include system.in.settings
+unfix fShakeSPCE
+fix shk all shake 0.0001 20 0 b 1 a 1
+velocity all create 298.0 12345 mom yes rot yes dist gaussian
+variable nwater equal count(all)/3
+variable dens equal (v_nwater*18.0153/6.02214e23)/(vol*1.0e-24)
+fix integrate all npt temp 298.0 298.0 100.0 iso 1.0 1.0 1000.0
+fix ave all ave/time 10 400 4000 v_dens
+thermo 2000
+thermo_style custom step temp press v_dens
+run 10000
+print "EQUILIBRIUM_DENSITY = $(v_dens:%.4f) g/cm3 (final instantaneous)"
+print "TIME_AVERAGED_DENSITY = $(f_ave:%.4f) g/cm3 (avg over last 10ps)"

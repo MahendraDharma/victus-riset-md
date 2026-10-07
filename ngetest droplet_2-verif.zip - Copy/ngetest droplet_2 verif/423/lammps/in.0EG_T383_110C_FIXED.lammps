@@ -1,0 +1,307 @@
+# ================================================================
+# Nanodroplet Impact + Equilibrium (Sessile) Simulation
+# System   : Air Murni (0% EG) pada SUS304
+# Suhu     : T_surface = 383 K (110 C)
+# Referensi: Wibowo et al., Int. J. Thermal Sci. 159 (2021) 106594
+# Water    : SPC/E model | Surface: EAM FeNiCr (Bonny 2013)
+#
+# PERBAIKAN dari versi sebelumnya:
+#   [FIX-1] Tambah compute T_surf dan T_liq (sebelumnya undefined)
+#   [FIX-2] Comment 'unfix hold_drop' (fix-nya juga di-comment)
+#   [FIX-3] Hapus blok CLEANUP duplikat di akhir file
+#
+# Jalankan:
+#   lmp -in in.0EG_T383_110C_FIXED.lammps -var TEMP 383
+# ================================================================
+
+# ---------------------------------------------------------------
+# SETUP DASAR
+# ---------------------------------------------------------------
+units           real
+atom_style      full
+boundary        p p f
+processors      * * *
+
+pair_style      hybrid/overlay  lj/cut/coul/long 10.0  eam/alloy
+bond_style      harmonic
+angle_style     harmonic
+kspace_style    pppm  1.0e-5
+kspace_modify   slab  3.0
+
+read_data       ../structures/system_0EG.data
+
+# ---------------------------------------------------------------
+# GRUP ATOM
+# ---------------------------------------------------------------
+group   surface  type 1 2 3
+group   liquid   type 4 5
+
+# ---------------------------------------------------------------
+# POSISIKAN DROPLET DI ATAS PERMUKAAN DENGAN GAP TERJAMIN
+# ---------------------------------------------------------------
+variable  gap_init  equal  20.0
+variable  surf_top  equal  bound(surface,zmax)
+variable  liq_bot   equal  bound(liquid,zmin)
+variable  z_shift   equal  (v_surf_top+v_gap_init)-v_liq_bot
+displace_atoms liquid move 0.0 0.0 ${z_shift} units box
+
+print "=== POSISI AWAL DROPLET ==="
+print "surface_zmax = ${surf_top} A | z_shift diterapkan = ${z_shift} A"
+print "gap awal target = ${gap_init} A"
+print "==========================="
+
+variable z_anchor equal bound(surface,zmin)+5.0
+region   anchor_reg block INF INF INF INF INF ${z_anchor}
+group    anchor_surf region anchor_reg
+group    therm_surf  subtract surface anchor_surf
+
+# ---------------------------------------------------------------
+# [FIX-1] DEFINISI COMPUTE TEMPERATUR
+# Diperlukan untuk thermo_style yang memakai c_T_surf & c_T_liq.
+# Catatan: untuk liquid yang pakai rigid/small, compute temp biasa
+# akan sedikit overestimate karena DOF tidak dikoreksi, tapi cukup
+# untuk monitoring di thermo output.
+# ---------------------------------------------------------------
+compute  T_surf  therm_surf  temp
+compute  T_liq   liquid      temp
+
+# ---------------------------------------------------------------
+# NEIGHBOR LIST
+# ---------------------------------------------------------------
+neighbor        2.0  bin
+neigh_modify    every 1  delay 0  check yes
+comm_modify     cutoff 15.0
+
+# ---------------------------------------------------------------
+# PAIR COEFFICIENTS
+# ---------------------------------------------------------------
+pair_coeff  * *  eam/alloy  ../potentials/FeNiCr_Bonny_2013_ptDef.eam.alloy  Fe Cr Ni NULL NULL
+pair_coeff  1  1  lj/cut/coul/long  0.0000  1.000
+pair_coeff  1  2  lj/cut/coul/long  0.0000  1.000
+pair_coeff  1  3  lj/cut/coul/long  0.0000  1.000
+pair_coeff  2  2  lj/cut/coul/long  0.0000  1.000
+pair_coeff  2  3  lj/cut/coul/long  0.0000  1.000
+pair_coeff  3  3  lj/cut/coul/long  0.0000  1.000
+pair_coeff  4  4  lj/cut/coul/long  0.1554  3.166
+pair_coeff  4  5  lj/cut/coul/long  0.0000  1.000
+pair_coeff  5  5  lj/cut/coul/long  0.0000  1.000
+pair_coeff  1  4  lj/cut/coul/long  0.0798  2.744
+pair_coeff  1  5  lj/cut/coul/long  0.0000  1.000
+pair_coeff  2  4  lj/cut/coul/long  0.0798  2.744
+pair_coeff  2  5  lj/cut/coul/long  0.0000  1.000
+pair_coeff  3  4  lj/cut/coul/long  0.0798  2.744
+pair_coeff  3  5  lj/cut/coul/long  0.0000  1.000
+
+bond_coeff   1   1000.0   1.000
+angle_coeff  1    100.0   109.47
+
+# ---------------------------------------------------------------
+# PROPERTIES FLUIDA
+# ---------------------------------------------------------------
+variable  rho_liq   equal  997.0
+variable  sigma_lv  equal  0.0719
+variable  mu_liq    equal  0.00085
+
+# ---------------------------------------------------------------
+# PARAMETER WAKTU & IMPACT
+# ---------------------------------------------------------------
+variable    TEMP       equal 423
+variable    dt_eq      equal 2.0
+variable    dt_imp     equal 0.25
+variable    v_impact   equal 0.00216
+variable    gap_min    equal 2.0
+
+timestep    ${dt_eq}
+
+# ================================================================
+# PHASE 0 - Equilibrasi 50 ps
+# ================================================================
+print ">>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP}K"
+
+fix     freeze_anchor  anchor_surf  setforce  0.0  0.0  0.0
+velocity anchor_surf   set          0.0  0.0  0.0
+
+velocity therm_surf    create       ${TEMP}  87287  dist gaussian
+fix      lang_eq_surf  therm_surf   langevin ${TEMP} ${TEMP} 100.0 48279
+fix      nve_eq_surf   therm_surf   nve
+
+velocity liquid      create   300.0  48731  rot yes  dist gaussian
+fix     rigid_eq  liquid  rigid/small  molecule  &
+        langevin  300.0  300.0  100.0  48731
+
+# fix hold_drop di-comment - tidak digunakan
+#fix     hold_drop  liquid  spring/self  0.5  z
+
+dump    eq_dump  all  custom  500  &
+        ../output/traj_eq_0EG_T${TEMP}.lammpstrj  &
+        id type x y z vx vy vz
+dump_modify  eq_dump  sort id  format float %12.6f
+
+thermo       500
+thermo_style custom  step  c_T_surf  c_T_liq  pe  ke  etotal  press
+run     25000
+undump  eq_dump
+
+# ================================================================
+# PHASE 0b - UKUR gamma_LV (VALIDASI #1)
+# ================================================================
+print ">>> PHASE 0b: Pengukuran tensor tekanan untuk gamma_LV"
+
+compute   p_liq  liquid  stress/atom  NULL
+compute   sum_sxx  liquid  reduce sum c_p_liq[1]
+compute   sum_syy  liquid  reduce sum c_p_liq[2]
+compute   sum_szz  liquid  reduce sum c_p_liq[3]
+
+variable  lx_liq  equal  bound(liquid,xmax)-bound(liquid,xmin)
+variable  ly_liq  equal  bound(liquid,ymax)-bound(liquid,ymin)
+variable  lz_liq  equal  bound(liquid,zmax)-bound(liquid,zmin)
+variable  vol_liq equal  v_lx_liq*v_ly_liq*v_lz_liq
+
+variable  Pxx_bar equal  -(c_sum_sxx)/v_vol_liq
+variable  Pyy_bar equal  -(c_sum_syy)/v_vol_liq
+variable  Pzz_bar equal  -(c_sum_szz)/v_vol_liq
+variable  gammaLV_meas equal 0.5*(v_lz_liq*1.0e-10)*((v_Pzz_bar-0.5*(v_Pxx_bar+v_Pyy_bar))*1.0e5)
+
+fix  gamma_out  all  print  200  &
+     "$(step)  ${Pxx_bar}  ${Pyy_bar}  ${Pzz_bar}  ${gammaLV_meas}"  &
+     file ../output/gammaLV_0EG_T${TEMP}.dat  &
+     title "step  Pxx[bar]  Pyy[bar]  Pzz[bar]  gammaLV[N/m]"
+
+thermo_style custom step c_T_liq v_Pxx_bar v_Pyy_bar v_Pzz_bar v_gammaLV_meas
+thermo       200
+run     10000
+
+unfix   gamma_out
+unfix   rigid_eq
+unfix   nve_eq_surf
+unfix   lang_eq_surf
+# unfix hold_drop di-comment - fix-nya juga di-comment
+#unfix   hold_drop
+
+# ================================================================
+# SNAPSHOT - ukur d0 dan gap sebelum impact
+# ================================================================
+variable  d0      equal  bound(liquid,xmax)-bound(liquid,xmin)
+variable  gap_val equal  bound(liquid,zmin)-bound(surface,zmax)
+
+print "=== PRE-IMPACT CHECK ==="
+print "d0  (diameter droplet) = ${d0} Angstrom"
+print "gap (droplet-surface)  = ${gap_val} Angstrom"
+print "========================"
+
+if "${gap_val} < ${gap_min}" then &
+   "print 'PERINGATAN: gap kurang aman (${gap_val} A). Auto-recenter droplet...'" &
+   "variable z_fix equal (${gap_min}+5.0)-${gap_val}" &
+   "displace_atoms liquid move 0.0 0.0 ${z_fix} units box" &
+   "variable gap_val2 equal bound(liquid,zmin)-bound(surface,zmax)" &
+   "print 'Gap setelah koreksi = ${gap_val2} A'"
+
+variable  d0_fix  equal  ${d0}
+variable  v0_fix  equal  ${v_impact}
+variable  dt_fix  equal  ${dt_imp}
+
+# ================================================================
+# DIMENSIONLESS NUMBERS (nanodroplet MD)
+# ================================================================
+variable  v_ms    equal  ${v_impact}*100.0
+variable  d0_m    equal  ${d0_fix}*1.0e-10
+variable  We_num  equal  ${rho_liq}*(${v_ms}^2)*${d0_m}/${sigma_lv}
+variable  Re_num  equal  ${rho_liq}*${v_ms}*${d0_m}/${mu_liq}
+variable  Oh_num  equal  ${mu_liq}/sqrt(${rho_liq}*${sigma_lv}*${d0_m})
+
+print "=== DIMENSIONLESS NUMBERS (nanodroplet MD) ==="
+print "d0_fix=${d0_fix} A | v=${v_ms} m/s | We=${We_num} | Re=${Re_num} | Oh=${Oh_num}"
+print "--- target makroskala Wibowo (We=55.85/Re=4457.8) TIDAK dicocokkan ---"
+print "============================================="
+
+# ================================================================
+# PHASE 1 + 2 - Impact lalu Settle hingga tau = 140
+# ================================================================
+print ">>> PHASE 1+2: Impact -> Settle | target tau=140"
+
+reset_timestep 0
+timestep ${dt_imp}
+
+variable  v_ms    delete
+variable  d0_m    delete
+variable  We_num  delete
+variable  Re_num  delete
+variable  Oh_num  delete
+
+variable  v_ms    equal  ${v_impact}*1.0e5
+variable  d0_m    equal  ${d0_fix}*1.0e-10
+variable  We_num  equal  ${rho_liq}*(${v_ms}^2)*${d0_m}/${sigma_lv}
+variable  Re_num  equal  ${rho_liq}*${v_ms}*${d0_m}/${mu_liq}
+variable  Oh_num  equal  ${mu_liq}/sqrt(${rho_liq}*${sigma_lv}*${d0_m})
+
+print "=== BILANGAN TAK BERDIMENSI (TERKOREKSI) ==="
+print "v = ${v_ms} m/s  | d0 = ${d0_fix} A"
+print "We = ${We_num}   | Re = ${Re_num}   | Oh = ${Oh_num}"
+print "============================================"
+
+fix     lang_surf    therm_surf  langevin  ${TEMP}  ${TEMP}  100.0  48279
+fix     nve_surface  therm_surf  nve
+
+velocity liquid set NULL NULL -${v_impact} sum yes
+
+fix     rigid_nve  liquid  rigid/small  molecule  &
+        langevin ${TEMP} ${TEMP} 100.0 581043
+
+fix     wall_top   liquid  wall/lj93  zhi EDGE  0.1  3.0  6.0  units box
+
+thermo_modify lost warn flush yes
+
+restart 50000  ../output/restart_0EG_T${TEMP}_run.*
+
+variable  x_span    equal  bound(liquid,xmax)-bound(liquid,xmin)
+variable  z_surf    equal  bound(surface,zmax)
+variable  apex_abs  equal  bound(liquid,zmax)-v_z_surf
+variable  spread    equal  v_x_span/${d0_fix}
+variable  apex      equal  v_apex_abs/${d0_fix}
+variable  tau       equal  step*${dt_fix}*${v0_fix}/${d0_fix}
+
+variable  xc        equal  (bound(liquid,xmax)+bound(liquid,xmin))/2.0
+variable  yc        equal  (bound(liquid,ymax)+bound(liquid,ymin))/2.0
+
+variable  n_liq     equal  count(liquid)
+
+compute   binRZ liquid chunk/atom bin/2d x lower 2.0 z lower 2.0 units box
+fix       dprof liquid ave/chunk 1000 100 200000 binRZ density/mass &
+          file ../output/densprofile_0EG_T${TEMP}.dat
+
+dump    imp_dump  all  custom  500  &
+        ../output/traj_run_0EG_T${TEMP}.lammpstrj  &
+        id type x y z vx vy vz
+dump_modify  imp_dump  sort id  format float %12.6f
+
+fix     spread_out  all  print  500  &
+        "${tau}  ${spread}  ${apex}  ${We_num}  ${Re_num}  ${Oh_num}  ${n_liq}"  &
+        file   ../output/spreading_0EG_T${TEMP}.dat  &
+        title  "tau   d/d0   h/d0   We   Re   Oh   N_liq"
+
+thermo        1000
+thermo_style  custom step c_T_surf c_T_liq pe ke etotal press &
+              v_spread v_apex v_tau v_n_liq
+
+# ---- PHASE 1: IMPACT DINAMIS (~640 ps) ----
+print ">>> PHASE 1: Impact dinamis / spreading (~640 ps)"
+run     2562000
+
+# ---- PHASE 2: RELAKSASI / WETTABILITY (~800 ps) ----
+print ">>> PHASE 2: Relaksasi / wettability (~800 ps, sessile)"
+run     3200000
+
+# ================================================================
+# CLEANUP
+# ================================================================
+undump  imp_dump
+unfix   spread_out
+unfix   dprof
+unfix   wall_top
+unfix   rigid_nve
+unfix   nve_surface
+unfix   lang_surf
+unfix   freeze_anchor
+restart 0
+
+print "=== SELESAI: 0EG T=${TEMP}K | tau mencapai ~140 ==="

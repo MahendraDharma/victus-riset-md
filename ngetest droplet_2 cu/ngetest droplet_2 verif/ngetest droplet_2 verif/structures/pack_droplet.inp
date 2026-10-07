@@ -1,0 +1,10 @@
+tolerance 2.0
+filetype pdb
+output droplet_0EG_spce.pdb
+seed 12345
+nloop0 1000
+nloop 1000
+structure spce.pdb
+  number 3000
+  inside sphere 53.84 53.97 83.49 40.0
+end structure

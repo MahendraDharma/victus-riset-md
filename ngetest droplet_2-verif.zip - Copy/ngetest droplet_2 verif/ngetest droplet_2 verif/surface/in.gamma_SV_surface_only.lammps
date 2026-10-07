@@ -1,0 +1,112 @@
+# ================================================================
+# Kalkulasi Tegangan Permukaan Solid-Vapor (gamma_SV)
+# Surface  : SUS304 (EAM FeNiCr Bonny 2013)
+# Suhu     : sesuai TEMP yang di-pass via command line
+# Metode   : Slab energy method (Heyes et al., JCP 135, 2011)
+#
+# Jalankan:
+#   mpirun -np 32 lmp_mpi -in in.gamma_SV_surface_only.lammps -var TEMP 383
+# ================================================================
+
+units           real
+atom_style      full
+boundary        p p f
+processors      8 4 1
+
+pair_style      eam/alloy
+# Tidak ada kspace karena tidak ada muatan
+
+# ---------------------------------------------------------------
+# BACA DATA — hanya surface, tanpa droplet
+# Buat file ini dari system_0EG.data tapi hapus semua atom tipe 4 dan 5
+# Atau buat struktur baru dengan script OVITO/Python
+# ---------------------------------------------------------------
+read_data       ../structures/surface_only_SUS304.data
+
+# ---------------------------------------------------------------
+# GRUP
+# ---------------------------------------------------------------
+group   surface  type 1 2 3
+
+variable z_anchor equal bound(surface,zmin)+5.0
+region   anchor_reg block INF INF INF INF INF ${z_anchor}
+group    anchor_surf region anchor_reg
+group    therm_surf  subtract surface anchor_surf
+
+# ---------------------------------------------------------------
+# PAIR COEFFICIENTS
+# ---------------------------------------------------------------
+pair_coeff  * *  ../potentials/FeNiCr_Bonny_2013_ptDef.eam.alloy  Fe Cr Ni
+
+# ---------------------------------------------------------------
+# NEIGHBOR
+# ---------------------------------------------------------------
+neighbor        2.0  bin
+neigh_modify    every 1  delay 0  check yes
+
+# ---------------------------------------------------------------
+# COMPUTE
+# ---------------------------------------------------------------
+compute     T_surf       therm_surf   temp
+compute     pe_surf_atom surface      pe/atom
+compute     E_surf_total surface      reduce  sum  c_pe_surf_atom
+
+# ---------------------------------------------------------------
+# VARIABEL GAMMA_SV
+# Konversi: kcal/mol/A^2 -> mJ/m^2
+#   1 kcal/mol/A^2 = 6.9477e4 mJ/m^2
+#   dibagi 2 karena slab punya DUA permukaan (atas dan bawah)
+# ---------------------------------------------------------------
+variable  area_xy   equal  lx*ly
+variable  gamma_SV  equal  (c_E_surf_total/(2.0*v_area_xy))*69477.0
+
+# ---------------------------------------------------------------
+# TIMESTEP & SETUP
+# ---------------------------------------------------------------
+timestep    2.0
+
+fix   freeze_anchor  anchor_surf  setforce  0.0  0.0  0.0
+velocity anchor_surf set          0.0  0.0  0.0
+
+velocity therm_surf  create  ${TEMP}  87287  dist gaussian
+fix      lang_surf   therm_surf  langevin  ${TEMP}  ${TEMP}  100.0  48279
+fix      nve_surf    therm_surf  nve
+
+# ---------------------------------------------------------------
+# PHASE 1 — Equilibrasi 50 ps
+# ---------------------------------------------------------------
+print ">>> PHASE 1: Equilibrasi surface 50 ps | T=${TEMP}K"
+
+thermo       500
+thermo_style custom  step  c_T_surf  pe  ke  etotal  press
+
+run     25000
+
+# ---------------------------------------------------------------
+# PHASE 2 — Production 100 ps, catat gamma_SV tiap 100 step
+# ---------------------------------------------------------------
+print ">>> PHASE 2: Production — kalkulasi gamma_SV | T=${TEMP}K"
+
+reset_timestep  0
+
+fix  gamma_out  all  print  100  &
+     "$(step)  $(c_E_surf_total)  $(v_area_xy)  $(v_gamma_SV)"  &
+     file   ../output/gamma_SV_T${TEMP}.dat  &
+     title  "step   E_surf(kcal/mol)   area(A^2)   gamma_SV(mJ/m^2)"
+
+thermo       100
+thermo_style custom  step  c_T_surf  pe  etotal  v_gamma_SV
+thermo_modify flush yes
+
+run     50000
+
+# ---------------------------------------------------------------
+# CLEANUP
+# ---------------------------------------------------------------
+unfix   gamma_out
+unfix   nve_surf
+unfix   lang_surf
+unfix   freeze_anchor
+
+print "=== SELESAI gamma_SV T=${TEMP}K ==="
+print "Rata-rata gamma_SV dihitung dari file: ../output/gamma_SV_T${TEMP}.dat"

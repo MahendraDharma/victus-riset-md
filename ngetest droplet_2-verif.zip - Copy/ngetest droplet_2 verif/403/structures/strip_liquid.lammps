@@ -1,0 +1,31 @@
+# ================================================================
+# strip_liquid.lammps
+# ================================================================
+units           real
+atom_style      full
+boundary        p p f
+pair_style      hybrid/overlay lj/cut/coul/long 10.0 eam/alloy
+bond_style      harmonic
+angle_style     harmonic
+kspace_style    pppm 1.0e-5
+kspace_modify   slab 3.0
+
+read_data       ../structures/system_0EG.data
+
+group   liquid  type 4 5
+delete_atoms    group liquid bond yes
+
+# ---------------------------------------------------------------
+# Switch off kspace & replace pair_style with pure eam/alloy
+# ---------------------------------------------------------------
+kspace_style    none
+pair_style      eam/alloy
+
+# Map all 5 original types; NULL for the deleted liquid types
+pair_coeff * * ../potentials/FeNiCr_Bonny_2013_ptDef.eam.alloy Fe Cr Ni NULL NULL
+
+mass  1  55.845   # Fe
+mass  2  51.996   # Cr
+mass  3  58.693   # Ni
+
+write_data      ../structures/surface_only_SUS304.data

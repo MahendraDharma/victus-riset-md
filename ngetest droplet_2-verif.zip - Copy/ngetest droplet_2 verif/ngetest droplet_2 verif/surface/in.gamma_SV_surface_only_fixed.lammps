@@ -1,0 +1,189 @@
+# ================================================================
+# Kalkulasi Tegangan Permukaan Solid-Vapor (gamma_SV)  -- v4
+# Surface  : SUS304 (EAM FeNiCr Bonny 2013)
+# Suhu     : sesuai TEMP yang di-pass via command line
+# Metode   : Slab energy method (Heyes et al., JCP 135, 2011)
+#
+# PERBAIKAN v4 (vs v3):
+#   [1] Equilibrasi DIPERPANJANG DRASTIS:
+#         Pre-equil  100 ps  +  Equil utama 1 ns (1000 ps)
+#       Alasan: data v3 menunjukkan gamma_SV masih drift monoton
+#       +4355 mJ/m^2 (+1.8%) selama "production", dgn slope di
+#       ujung (+547 /10k step) bahkan lebih curam dari slope
+#       global. Sistem alloy 3-elemen ini relaksasi jauh lebih
+#       lambat dari asumsi 300 ps. Akar masalah = equilibrasi
+#       belum tuntas, BUKAN termostat.
+#   [2] Monitoring equilibrasi diperapat (tiap 1000 step) sepanjang
+#       1 ns penuh, agar plateau benar-benar terlihat sebelum prod.
+#   [3] Production diperpanjang 100 -> 200 ps untuk statistik
+#       rata-rata yang lebih halus setelah sistem datar.
+#
+# Warisan dari v3 (tetap dipertahankan):
+#   - Minimisasi energi awal
+#   - Dinding reflektif batas-z (cegah "lost atoms")
+#   - Timestep 1.0 fs
+#   - Production tetap memakai termostat Langevin
+#   - compute T_surf dynamic/dof
+#
+# Jalankan:
+#   mpirun -np 32 lmp_mpi -in in.gamma_SV_surface_only_fixed.lammps -var TEMP 383
+# ================================================================
+
+units           real
+atom_style      full
+boundary        p p f
+processors      8 4 1
+
+pair_style      eam/alloy
+
+read_data       ../structures/surface_only_SUS304.data
+
+# ---------------------------------------------------------------
+# GRUP
+# ---------------------------------------------------------------
+group   surface  type 1 2 3
+
+variable z_anchor equal bound(surface,zmin)+5.0
+region   anchor_reg block INF INF INF INF INF ${z_anchor}
+group    anchor_surf region anchor_reg
+group    therm_surf  subtract surface anchor_surf
+
+# ---------------------------------------------------------------
+# PAIR COEFFICIENTS
+# ---------------------------------------------------------------
+pair_coeff  * *  ../potentials/FeNiCr_Bonny_2013_ptDef.eam.alloy  Fe Cr Ni
+
+# ---------------------------------------------------------------
+# NEIGHBOR
+# ---------------------------------------------------------------
+neighbor        2.0  bin
+neigh_modify    every 1  delay 0  check yes
+
+# ---------------------------------------------------------------
+# COMPUTE
+# c_T_surf memakai dynamic/dof karena sebagian atom (anchor)
+# di-freeze; LAMMPS akan menghitung derajat kebebasan dgn benar.
+# ---------------------------------------------------------------
+compute     T_surf       therm_surf   temp
+compute_modify  T_surf   dynamic/dof yes
+compute     pe_surf_atom surface      pe/atom
+compute     E_surf_total surface      reduce  sum  c_pe_surf_atom
+
+# ---------------------------------------------------------------
+# VARIABEL GAMMA_SV
+# Konversi: kcal/mol/A^2 -> mJ/m^2
+#   1 kcal/mol/A^2 = 6.9477e4 mJ/m^2
+#   dibagi 2 karena slab punya DUA permukaan (atas dan bawah)
+# ---------------------------------------------------------------
+variable  area_xy   equal  lx*ly
+variable  gamma_SV  equal  (c_E_surf_total/(2.0*v_area_xy))*69477.0
+
+# ---------------------------------------------------------------
+# JANGKAR + DINDING REFLEKTIF
+# Dinding mencegah atom terbang keluar batas-z non-periodik.
+# ---------------------------------------------------------------
+fix   freeze_anchor  anchor_surf  setforce  0.0  0.0  0.0
+velocity anchor_surf set          0.0  0.0  0.0
+
+fix   wall_top  surface  wall/reflect  zhi EDGE
+fix   wall_bot  surface  wall/reflect  zlo EDGE
+
+# ---------------------------------------------------------------
+# PHASE -1 — Minimisasi energi awal
+# ---------------------------------------------------------------
+print ">>> PHASE -1: Minimisasi energi awal"
+min_style  cg
+minimize   1.0e-4  1.0e-6  1000  10000
+
+# ---------------------------------------------------------------
+# TIMESTEP
+# ---------------------------------------------------------------
+timestep    1.0
+
+# ---------------------------------------------------------------
+# PHASE 0 — Pre-equilibrasi ringan 100 ps
+# ---------------------------------------------------------------
+print ">>> PHASE 0: Pre-equilibrasi 100 ps | T=${TEMP}K"
+
+velocity therm_surf  create  ${TEMP}  87287  dist gaussian
+fix      lang_surf   therm_surf  langevin  ${TEMP}  ${TEMP}  100.0  48279
+fix      nve_surf    therm_surf  nve
+
+thermo       1000
+thermo_style custom  step  c_T_surf  pe  ke  etotal  press
+thermo_modify flush yes
+
+fix  preequil_monitor  all  print  1000  &
+     "PRE $(step)  $(c_E_surf_total)  $(c_T_surf)"  &
+     file   ../output/equil_monitor_T${TEMP}.dat  &
+     title  "# step   E_surf(kcal/mol)   T_surf(K)"
+
+run     100000
+# = 100 ps @ 1.0 fs
+
+unfix   preequil_monitor
+
+# ---------------------------------------------------------------
+# PHASE 1 — Equilibrasi utama 1 ns (1000 ps)
+# Diperpanjang dari 200 ps -> 1000 ps. Data v3 membuktikan 300 ps
+# total belum cukup; gamma_SV masih menanjak monoton tanpa tanda
+# melandai. 1 ns memberi ruang relaksasi yang jauh lebih luas.
+# Monitoring diperapat (tiap 1000 step) supaya plateau terlihat.
+# ---------------------------------------------------------------
+print ">>> PHASE 1: Equilibrasi utama 1 ns | T=${TEMP}K"
+
+fix  equil_monitor  all  print  1000  &
+     "EQ $(step)  $(c_E_surf_total)  $(c_T_surf)"  &
+     append ../output/equil_monitor_T${TEMP}.dat  screen no
+
+thermo       2000
+thermo_style custom  step  c_T_surf  pe  ke  etotal  press
+thermo_modify flush yes
+
+run     1000000
+# = 1000 ps (1 ns) @ 1.0 fs
+
+unfix   equil_monitor
+
+# ---------------------------------------------------------------
+# CEK WAJIB sebelum production:
+# Buka ../output/equil_monitor_T${TEMP}.dat dan pastikan slope
+# E_surf di ~100.000 step terakhir sudah mendekati nol (plateau).
+# Jika MASIH menanjak, tambahkan "run 1000000" lagi di sini
+# sebelum lanjut ke PHASE 2.
+# ---------------------------------------------------------------
+
+# ---------------------------------------------------------------
+# PHASE 2 — Production 200 ps, catat gamma_SV tiap 100 step
+# Diperpanjang ke 200 ps untuk rata-rata yang lebih halus.
+# Termostat Langevin tetap aktif.
+# ---------------------------------------------------------------
+print ">>> PHASE 2: Production - kalkulasi gamma_SV | T=${TEMP}K"
+
+reset_timestep  0
+
+fix  gamma_out  all  print  100  &
+     "$(step)  $(c_E_surf_total)  $(v_area_xy)  $(v_gamma_SV)"  &
+     file   ../output/gamma_SV_T${TEMP}.dat  &
+     title  "step   E_surf(kcal/mol)   area(A^2)   gamma_SV(mJ/m^2)"
+
+thermo       500
+thermo_style custom  step  c_T_surf  pe  etotal  v_gamma_SV
+thermo_modify flush yes
+
+run     200000
+# = 200 ps @ 1.0 fs
+
+# ---------------------------------------------------------------
+# CLEANUP
+# ---------------------------------------------------------------
+unfix   gamma_out
+unfix   nve_surf
+unfix   lang_surf
+unfix   wall_top
+unfix   wall_bot
+unfix   freeze_anchor
+
+print "=== SELESAI gamma_SV T=${TEMP}K ==="
+print "Rata-rata gamma_SV dari file: ../output/gamma_SV_T${TEMP}.dat"
+print "Log equilibrasi dari file:   ../output/equil_monitor_T${TEMP}.dat"

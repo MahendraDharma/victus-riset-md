@@ -1,0 +1,81 @@
+LAMMPS (22 Jul 2025 - Update 1)
+OMP_NUM_THREADS environment is not set. Defaulting to 1 thread.
+  using 1 OpenMP thread(s) per MPI task
+# ================================================================
+# strip_liquid.lammps
+# ================================================================
+units           real
+atom_style      full
+boundary        p p f
+pair_style      hybrid/overlay lj/cut/coul/long 10.0 eam/alloy
+bond_style      harmonic
+angle_style     harmonic
+kspace_style    pppm 1.0e-5
+kspace_modify   slab 3.0
+
+read_data       ../structures/system_0EG.data
+Reading data file ...
+  orthogonal box = (0 0 0) to (107.7 107.7 197.192)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  37800 atoms
+  scanning bonds ...
+  2 = max bonds/atom
+  scanning angles ...
+  1 = max angles/atom
+  orthogonal box = (0 0 0) to (107.7 107.7 197.192)
+  1 by 1 by 1 MPI processor grid
+  reading bonds ...
+  6000 bonds
+  reading angles ...
+  3000 angles
+Finding 1-2 1-3 1-4 neighbors ...
+  special bond factors lj:    0        0        0       
+  special bond factors coul:  0        0        0       
+     2 = max # of 1-2 neighbors
+     1 = max # of 1-3 neighbors
+     1 = max # of 1-4 neighbors
+     2 = max # of special neighbors
+  special bonds CPU = 0.005 seconds
+  read_data CPU = 1.185 seconds
+
+group   liquid  type 4 5
+9000 atoms in group liquid
+delete_atoms    group liquid bond yes
+WARNING: Ignoring 'compress yes' for molecular system (src/delete_atoms.cpp:141)
+Deleted 9000 atoms, new total = 28800
+Deleted 6000 bonds, new total = 0
+Deleted 3000 angles, new total = 0
+
+# ---------------------------------------------------------------
+# Switch off kspace & replace pair_style with pure eam/alloy
+# ---------------------------------------------------------------
+kspace_style    none
+pair_style      eam/alloy
+
+# Map all 5 original types; NULL for the deleted liquid types
+pair_coeff * * ../potentials/FeNiCr_Bonny_2013_ptDef.eam.alloy Fe Cr Ni NULL NULL
+
+mass  1  55.845   # Fe
+mass  2  51.996   # Cr
+mass  3  58.693   # Ni
+
+write_data      ../structures/surface_only_SUS304.data
+System init for write_data ...
+ERROR: All pair coeffs are not set. Status:
+     1      1: is set
+     1      2: is set
+     1      3: is set
+     1      4: is not set
+     1      5: is not set
+     2      2: is set
+     2      3: is set
+     2      4: is not set
+     2      5: is not set
+     3      3: is set
+     3      4: is not set
+     3      5: is not set
+     4      4: is not set
+     4      5: is not set
+     5      5: is not set
+ (src/pair.cpp:263)

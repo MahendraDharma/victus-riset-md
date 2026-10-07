@@ -1,0 +1,20 @@
+# Data besar -> simpan di Google Drive / Zenodo
+*.lammpstrj
+*.zip
+*.7z
+restart_*
+
+# Dokumen pribadi
+/Keperluan Tohoku/
+
+# File >=95MB (batas GitHub 100MB)
+/ngetest droplet_2 Verif/Output/traj_eq_0EG_T383.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/403/output/traj_eq_0EG_T403.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/403/output/traj_run_0EG_T403.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/423/output/traj_eq_0EG_T423.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/423/output/traj_run_0EG_T423.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/ngetest droplet_2 verif/output/traj_eq_0EG_T383.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/ngetest droplet_2 verif/output/traj_impact_0EG_T383.lammpstrj
+/ngetest droplet_2-verif.zip - Copy/ngetest droplet_2 verif/ngetest droplet_2 verif/output/traj_run_0EG_T383.lammpstrj
+/_unik_dari_verif.zip/ngetest droplet_2 verif/output.7z
+/_unik_dari_verif.zip/ngetest droplet_2 verif/output.zip

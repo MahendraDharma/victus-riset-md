@@ -1,0 +1,8 @@
+tolerance 2.0
+filetype pdb
+output droplet_packed.pdb
+seed 12345
+structure water.pdb
+  number 5991
+  inside sphere 0. 0. 0. 36.
+end structure

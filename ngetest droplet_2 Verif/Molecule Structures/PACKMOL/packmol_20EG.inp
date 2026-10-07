@@ -1,0 +1,13 @@
+tolerance 2.0
+filetype pdb
+output droplet_20EG.pdb
+
+structure /mnt/c/Users/user/Documents/riset\ md/ngetest\ droplet_2\ Verif/Molecule\ Structures/Zat\ untuk\ droplet/PDB\ FILE/HOH_ideal.pdb
+  number 2400
+  inside sphere 53.85 53.85 83.72 40.0
+end structure
+
+structure /mnt/c/Users/user/Documents/riset\ md/ngetest\ droplet_2\ Verif/Molecule\ Structures/Zat\ untuk\ droplet/PDB\ FILE/EDO_ideal.pdb
+  number 600
+  inside sphere 53.85 53.85 83.72 40.0
+end structure

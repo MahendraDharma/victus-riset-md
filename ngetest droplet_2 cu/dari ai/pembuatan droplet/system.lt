@@ -1,0 +1,7 @@
+import "spce.lt"
+wat = new SPCE[1000]
+write_once("Data Boundary") {
+  0 33 xlo xhi
+  0 33 ylo yhi
+  0 33 zlo zhi
+}

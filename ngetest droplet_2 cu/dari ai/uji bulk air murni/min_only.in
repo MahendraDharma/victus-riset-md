@@ -1,0 +1,7 @@
+include system.in.init
+read_data system.data
+include system.in.settings
+unfix fShakeSPCE
+min_style cg
+minimize 1.0e-4 1.0e-6 5000 50000
+write_data minimized.data nocoeff

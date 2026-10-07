@@ -1,0 +1,8 @@
+tolerance 2.5
+filetype pdb
+output bulk_packed.pdb
+seed 12345
+structure water.pdb
+  number 1000
+  inside box 0. 0. 0. 33. 33. 33.
+end structure

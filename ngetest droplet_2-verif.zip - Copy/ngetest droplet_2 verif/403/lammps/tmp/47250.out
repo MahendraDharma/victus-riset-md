@@ -1,0 +1,97 @@
+Sender: LSF System <lsfadmin@einstein06.ifs.tohoku.ac.jp>
+Subject: Job 47250: <MDsemi> in cluster <HPCS> Exited
+
+Job <MDsemi> was submitted from host <einstein01.ifs.tohoku.ac.jp> by user <robi> in cluster <HPCS>.
+Job was executed on host(s) <8*einstein06.ifs.tohoku.ac.jp>, in queue <guest2>, as user <robi> in cluster <HPCS>.
+</home/robi> was used as the home directory.
+</misc/home/robi/test2/mahen LAMMPS/lammps> was used as the working directory.
+Started at Results reported on 
+Your job looked like:
+
+------------------------------------------------------------
+# LSBATCH: User input
+#!/bin/bash
+
+## MPI for CPUs
+#BSUB -n 8
+#BSUB -o tmp/
+#BSUB -q guest2
+#BSUB -J MDsemi
+
+
+mpirun /usr/local/bin/lmp -i in.0EG_T383_110C_FIXED.lammps
+
+
+------------------------------------------------------------
+
+Exited with exit code 1.
+
+Resource usage summary:
+
+    CPU time :                                   0.07 sec.
+    Max Memory :                                 -
+    Average Memory :                             -
+    Total Requested Memory :                     -
+    Delta Memory :                               -
+    Max Swap :                                   -
+    Max Processes :                              -
+    Max Threads :                                -
+    Run time :                                   1 sec.
+    Turnaround time :                            1 sec.
+
+The output (if any) follows:
+
+LAMMPS (19 Nov 2024)
+  using 16 OpenMP thread(s) per MPI task
+Reading data file ...
+  orthogonal box = (0 0 0) to (107.7 107.7 197.192)
+  2 by 2 by 2 MPI processor grid
+  reading atoms ...
+  37800 atoms
+  scanning bonds ...
+  2 = max bonds/atom
+  scanning angles ...
+  1 = max angles/atom
+  orthogonal box = (0 0 0) to (107.7 107.7 197.192)
+  2 by 2 by 2 MPI processor grid
+  reading bonds ...
+  6000 bonds
+  reading angles ...
+  3000 angles
+Finding 1-2 1-3 1-4 neighbors ...
+  special bond factors lj:    0        0        0       
+  special bond factors coul:  0        0        0       
+     2 = max # of 1-2 neighbors
+     1 = max # of 1-3 neighbors
+     1 = max # of 1-4 neighbors
+     2 = max # of special neighbors
+  special bonds CPU = 0.003 seconds
+  read_data CPU = 0.206 seconds
+28800 atoms in group surface
+9000 atoms in group liquid
+Displacing atoms ...
+=== POSISI AWAL DROPLET ===
+surface_zmax = 26.925 A | z_shift diterapkan = 0 A
+gap awal target = 20 A
+===========================
+5400 atoms in group anchor_surf
+23400 atoms in group therm_surf
+ERROR on proc 0: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 1: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 2: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 3: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 4: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 5: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 6: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+ERROR on proc 7: Substitution for illegal variable TEMP (src/input.cpp:666)
+Last command: >>> PHASE 0: Equilibrasi 50 ps | 0EG T=${TEMP
+application called MPI_Abort(MPI_COMM_WORLD, 1) - process 1
+application called MPI_Abort(MPI_COMM_WORLD, 1) - process 2
+application called MPI_Abort(MPI_COMM_WORLD, 1) - process 3

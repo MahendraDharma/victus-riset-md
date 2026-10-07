@@ -1,0 +1,8 @@
+tolerance 2.0
+filetype pdb
+output droplet_0EG.pdb
+
+structure water.pdb
+  number 3000
+  inside sphere 53.85 53.85 83.72 40.0
+end structure
